@@ -51,26 +51,38 @@
         .animate-fade-in {
             animation: fadeIn 0.4s ease-out forwards;
         }
+        .api-selector {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
     </style>
 </head>
 <body class="min-h-screen p-4 text-gray-100 flex flex-col items-center">
 
     <div class="glass-card rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden ring-1 ring-white/10 mb-8">
         <div class="bg-slate-900/50 p-6 border-b border-white/10 text-center">
-            <h1 class="text-2xl font-black tracking-tight text-white uppercase">Position Size</h1>
-            <p class="text-blue-400 text-xs font-bold tracking-widest uppercase mt-1">Multi-Ticker • Enhanced Data</p>
+            <h1 class="text-2xl font-black tracking-tight text-white uppercase">Position Size Calculator</h1>
+            <p class="text-blue-400 text-xs font-bold tracking-widest uppercase mt-1">Multi-Ticker • Real-Time Data • Optimized</p>
         </div>
 
-        <div id="apiKeySection" class="hidden p-4 bg-blue-900/20 border-b border-blue-500/20 text-sm">
+        <div class="p-4 bg-blue-900/10 border-b border-blue-500/20">
             <div class="flex flex-col gap-2">
-                <label class="font-bold text-blue-200">Enter Your Finnhub API Key:</label>
-                <div class="flex gap-2">
-                    <input type="password" id="apiKeyInput" placeholder="Paste key here" class="w-full bg-slate-800 text-white border border-slate-600 rounded px-3 py-2 focus:outline-none focus:border-blue-500">
-                    <button onclick="saveKey()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-bold transition-colors">SAVE</button>
+                <label class="font-bold text-blue-200 text-sm">Select API Provider:</label>
+                <select id="apiProvider" class="bg-slate-800 text-white border border-slate-600 rounded px-3 py-2 focus:outline-none focus:border-blue-500 font-bold">
+                    <option value="twelvedata">Twelve Data (Fastest - Free 800 calls/day)</option>
+                    <option value="fmp">FMP - Financial Modeling Prep (Batch Support)</option>
+                    <option value="alphavantage">Alpha Vantage (Popular - Free)</option>
+                    <option value="finnhub">Finnhub (Original - Slower)</option>
+                </select>
+                <div id="apiKeySection" class="mt-2">
+                    <div class="flex gap-2">
+                        <input type="password" id="apiKeyInput" placeholder="Enter API Key" class="w-full bg-slate-800 text-white border border-slate-600 rounded px-3 py-2 focus:outline-none focus:border-blue-500">
+                        <button onclick="saveKey()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-bold transition-colors whitespace-nowrap">SAVE</button>
+                    </div>
+                    <p class="text-[10px] text-gray-400 mt-2" id="apiInfo">
+                        Get free key: <a href="https://twelvedata.com" target="_blank" class="text-blue-400 underline">twelvedata.com</a>
+                    </p>
                 </div>
-                <p class="text-[10px] text-gray-400">
-                    Get a free key at <a href="https://finnhub.io/" target="_blank" class="text-blue-400 underline hover:text-blue-300">finnhub.io</a>.
-                </p>
             </div>
         </div>
 
@@ -105,111 +117,209 @@
     <div id="resultsContainer" class="w-full max-w-2xl space-y-6 pb-12"></div>
 
     <script>
-        const HARDCODED_KEY = ""; 
+        // API Configuration
+        const API_CONFIGS = {
+            twelvedata: {
+                name: 'Twelve Data',
+                infoUrl: 'https://twelvedata.com',
+                storageKey: 'twelvedata_key'
+            },
+            fmp: {
+                name: 'Financial Modeling Prep',
+                infoUrl: 'https://site.financialmodelingprep.com',
+                storageKey: 'fmp_key'
+            },
+            alphavantage: {
+                name: 'Alpha Vantage',
+                infoUrl: 'https://www.alphavantage.co',
+                storageKey: 'alphavantage_key'
+            },
+            finnhub: {
+                name: 'Finnhub',
+                infoUrl: 'https://finnhub.io',
+                storageKey: 'finnhub_key'
+            }
+        };
+
+        // Update API info when provider changes
+        document.getElementById('apiProvider').addEventListener('change', (e) => {
+            const config = API_CONFIGS[e.target.value];
+            document.getElementById('apiInfo').innerHTML = 
+                `Get free key: <a href="${config.infoUrl}" target="_blank" class="text-blue-400 underline">${config.infoUrl}</a>`;
+            
+            // Load saved key for this provider
+            const savedKey = localStorage.getItem(config.storageKey);
+            if (savedKey) {
+                document.getElementById('apiKeyInput').value = savedKey;
+            } else {
+                document.getElementById('apiKeyInput').value = '';
+            }
+        });
 
         document.addEventListener('DOMContentLoaded', () => {
-            const savedKey = localStorage.getItem('finnhub_key');
-            if (!savedKey && !HARDCODED_KEY) {
-                document.getElementById('apiKeySection').classList.remove('hidden');
+            const provider = document.getElementById('apiProvider').value;
+            const savedKey = localStorage.getItem(API_CONFIGS[provider].storageKey);
+            if (savedKey) {
+                document.getElementById('apiKeyInput').value = savedKey;
             }
         });
 
         function saveKey() {
+            const provider = document.getElementById('apiProvider').value;
             const key = document.getElementById('apiKeyInput').value.trim();
             if (key) {
-                localStorage.setItem('finnhub_key', key);
-                document.getElementById('apiKeySection').classList.add('hidden');
+                localStorage.setItem(API_CONFIGS[provider].storageKey, key);
+                showSuccess('API Key saved successfully!');
             }
         }
 
-        async function fetchTickerData(ticker, apiKey) {
-            // 1. Fetch Basic Quote (Fastest, for Current Price)
-            const quoteRes = await fetch(`https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${apiKey}`);
-            if (quoteRes.status === 429) throw new Error("Rate Limit");
-            const quoteData = await quoteRes.json();
+        function showSuccess(msg) {
+            const errorMsg = document.getElementById('errorMsg');
+            errorMsg.innerText = msg;
+            errorMsg.classList.remove('hidden', 'bg-red-900/20', 'text-red-400');
+            errorMsg.classList.add('bg-green-900/20', 'text-green-400');
+            setTimeout(() => errorMsg.classList.add('hidden'), 3000);
+        }
 
-            // 2. Fetch Daily Candle (More accurate for High/Low)
-            // Get timestamps for "last 3 days" to ensure we catch today/last session
-            const to = Math.floor(Date.now() / 1000);
-            const from = to - (72 * 3600); // 3 days back
+        // API FETCHERS - All optimized for parallel execution
+        
+        async function fetchTwelveData(ticker, apiKey) {
+            const quoteUrl = `https://api.twelvedata.com/quote?symbol=${ticker}&apikey=${apiKey}`;
+            const timeSeriesUrl = `https://api.twelvedata.com/time_series?symbol=${ticker}&interval=1day&outputsize=1&apikey=${apiKey}`;
             
-            const candleRes = await fetch(`https://finnhub.io/api/v1/stock/candle?symbol=${ticker}&resolution=D&from=${from}&to=${to}&token=${apiKey}`);
-            const candleData = await candleRes.json();
+            // Parallel fetch for quote and daily high/low
+            const [quoteRes, tsRes] = await Promise.all([
+                fetch(quoteUrl),
+                fetch(timeSeriesUrl)
+            ]);
+            
+            if (quoteRes.status === 429 || tsRes.status === 429) throw new Error("Rate Limit");
+            
+            const quote = await quoteRes.json();
+            const timeSeries = await tsRes.json();
+            
+            if (quote.code === 400 || quote.status === 'error') throw new Error("Invalid Ticker");
+            
+            return {
+                c: parseFloat(quote.close),
+                h: parseFloat(quote.high),
+                l: parseFloat(quote.low)
+            };
+        }
 
-            // Check if valid
-            if (quoteData.c === 0 && quoteData.d === null) throw new Error("Invalid Ticker");
+        async function fetchFMP(ticker, apiKey) {
+            // FMP supports batch quotes - much faster!
+            const url = `https://financialmodelingprep.com/api/v3/quote/${ticker}?apikey=${apiKey}`;
+            const res = await fetch(url);
+            
+            if (res.status === 429) throw new Error("Rate Limit");
+            const data = await res.json();
+            
+            if (!data || data.length === 0 || data.error) throw new Error("Invalid Ticker");
+            
+            const quote = data[0];
+            return {
+                c: quote.price,
+                h: quote.dayHigh,
+                l: quote.dayLow
+            };
+        }
 
-            // --- SMART DATA MERGE ---
-            let current = quoteData.c;
-            let high = quoteData.h;
-            let low = quoteData.l;
+        async function fetchAlphaVantage(ticker, apiKey) {
+            const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${ticker}&apikey=${apiKey}`;
+            const res = await fetch(url);
+            
+            if (res.status === 429) throw new Error("Rate Limit");
+            const data = await res.json();
+            
+            if (data['Error Message'] || data['Note']) throw new Error(data['Note'] ? "Rate Limit" : "Invalid Ticker");
+            
+            const quote = data['Global Quote'];
+            if (!quote) throw new Error("Invalid Ticker");
+            
+            return {
+                c: parseFloat(quote['05. price']),
+                h: parseFloat(quote['03. high']),
+                l: parseFloat(quote['04. low'])
+            };
+        }
 
-            // If Candle data exists (status "ok"), prefer it for High/Low
-            if (candleData.s === "ok" && candleData.h && candleData.h.length > 0) {
-                const lastIndex = candleData.h.length - 1;
-                const candleHigh = candleData.h[lastIndex];
-                const candleLow = candleData.l[lastIndex];
+        async function fetchFinnhub(ticker, apiKey) {
+            const quoteUrl = `https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${apiKey}`;
+            const res = await fetch(quoteUrl);
+            
+            if (res.status === 429) throw new Error("Rate Limit");
+            const data = await res.json();
+            
+            if (data.c === 0 && data.d === null) throw new Error("Invalid Ticker");
+            
+            return {
+                c: data.c,
+                h: data.h || data.c,
+                l: data.l || data.c
+            };
+        }
 
-                // If Quote High is 0 OR Candle shows a wider range, trust Candle
-                if (high === 0 || candleHigh > high) {
-                    high = candleHigh;
-                }
-                if (low === 0 || (candleLow < low && candleLow > 0)) {
-                    low = candleLow;
-                }
+        async function fetchTickerData(ticker, provider, apiKey) {
+            switch(provider) {
+                case 'twelvedata':
+                    return await fetchTwelveData(ticker, apiKey);
+                case 'fmp':
+                    return await fetchFMP(ticker, apiKey);
+                case 'alphavantage':
+                    return await fetchAlphaVantage(ticker, apiKey);
+                case 'finnhub':
+                    return await fetchFinnhub(ticker, apiKey);
+                default:
+                    throw new Error("Unknown provider");
             }
-
-            // Fallback: If low is still 0 (very rare), set it to current price to prevent crazy numbers
-            if (low === 0) low = current;
-            if (high === 0) high = current;
-
-            return { c: current, h: high, l: low };
         }
 
         async function calculateAll() {
             const riskVal = parseFloat(document.getElementById('riskValue').value);
             const tickerInputs = Array.from(document.querySelectorAll('.ticker-input'));
             const tickers = tickerInputs.map(i => i.value.trim().toUpperCase()).filter(v => v !== "");
-
+            const provider = document.getElementById('apiProvider').value;
+            
             const btn = document.getElementById('calcBtn');
             const container = document.getElementById('resultsContainer');
             const errorMsg = document.getElementById('errorMsg');
 
-            let apiKey = localStorage.getItem('finnhub_key');
-            if (!apiKey && HARDCODED_KEY) apiKey = HARDCODED_KEY;
+            const apiKey = localStorage.getItem(API_CONFIGS[provider].storageKey);
 
             if (!apiKey) {
-                document.getElementById('apiKeySection').classList.remove('hidden');
-                errorMsg.innerText = "Please enter API Key above.";
-                errorMsg.classList.remove('hidden');
+                errorMsg.innerText = "Please enter and save your API Key above.";
+                errorMsg.classList.remove('hidden', 'bg-green-900/20', 'text-green-400');
+                errorMsg.classList.add('bg-red-900/20', 'text-red-400');
                 return;
             }
             if (tickers.length === 0) {
                 errorMsg.innerText = "Enter at least one ticker.";
-                errorMsg.classList.remove('hidden');
+                errorMsg.classList.remove('hidden', 'bg-green-900/20', 'text-green-400');
+                errorMsg.classList.add('bg-red-900/20', 'text-red-400');
                 return;
             }
 
             errorMsg.classList.add('hidden');
             container.innerHTML = ''; 
-            const originalBtnText = btn.innerText;
-            btn.innerHTML = '<span class="animate-pulse">FETCHING DATA...</span>';
+            const originalBtnText = btn.innerHTML;
+            btn.innerHTML = '<span class="animate-pulse">⚡ FETCHING DATA...</span>';
+            
+            const startTime = performance.now();
 
             try {
-                // Process tickers sequentially to avoid "Too Many Requests" on free tier
-                // (Parallel is faster but hits 60 limit instantly with 5 tickers x 2 calls)
-                const results = [];
-                for (const ticker of tickers) {
-                    try {
-                        const data = await fetchTickerData(ticker, apiKey);
-                        results.push({ ticker, data, success: true });
-                        // Tiny pause to be nice to API
-                        await new Promise(r => setTimeout(r, 100)); 
-                    } catch (err) {
-                        results.push({ ticker, error: err.message, success: false });
-                    }
-                }
+                // PARALLEL PROCESSING - Fetch all tickers simultaneously!
+                const fetchPromises = tickers.map(ticker => 
+                    fetchTickerData(ticker, provider, apiKey)
+                        .then(data => ({ ticker, data, success: true }))
+                        .catch(err => ({ ticker, error: err.message, success: false }))
+                );
 
+                const results = await Promise.all(fetchPromises);
+                const endTime = performance.now();
+                const fetchTime = ((endTime - startTime) / 1000).toFixed(2);
+
+                // Display results
                 results.forEach(result => {
                     if (result.success) {
                         createResultCard(result.ticker, result.data, riskVal, container);
@@ -218,10 +328,17 @@
                     }
                 });
 
+                // Show performance metric
+                const perfDiv = document.createElement('div');
+                perfDiv.className = 'text-center text-green-400 text-sm font-bold bg-green-900/20 py-2 rounded-lg';
+                perfDiv.innerHTML = `⚡ Fetched ${results.length} ticker(s) in ${fetchTime}s`;
+                container.appendChild(perfDiv);
+
             } catch (err) {
                 console.error(err);
                 errorMsg.innerText = "Error: " + err.message;
-                errorMsg.classList.remove('hidden');
+                errorMsg.classList.remove('hidden', 'bg-green-900/20', 'text-green-400');
+                errorMsg.classList.add('bg-red-900/20', 'text-red-400');
             } finally {
                 btn.innerHTML = originalBtnText;
             }
@@ -230,11 +347,9 @@
         function createResultCard(ticker, data, riskAmount, container) {
             const { c: current, h: high, l: low } = data;
 
-            // --- 1 CENT BUFFER LOGIC ---
             const longStopPrice = low - 0.01;
             const shortStopPrice = high + 0.01;
 
-            // LONG CALC
             const riskPerShareLong = current - longStopPrice;
             let sharesLong = 0;
             if (riskPerShareLong > 0) {
@@ -243,7 +358,6 @@
                 sharesLong = "N/A";
             }
 
-            // SHORT CALC
             const riskPerShareShort = shortStopPrice - current;
             let sharesShort = 0;
             if (riskPerShareShort > 0) {
