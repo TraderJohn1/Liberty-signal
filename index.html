@@ -48,8 +48,9 @@
         }
         .risk-input {
             font-size: 1.5rem;
-            padding-left: 2.5rem;
-            text-align: left;
+            text-align: center;
+            padding-left: 0.75rem;
+            padding-right: 0.75rem;
         }
         .glass-card {
             background: rgba(30, 41, 59, 0.7);
@@ -111,10 +112,7 @@
         <div class="p-6 space-y-6">
             <div class="space-y-2">
                 <label class="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Risk Per Trade ($)</label>
-                <div class="relative">
-                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-800 font-extrabold text-xl z-10 pointer-events-none">$</span>
-                    <input type="number" id="riskValue" class="super-input risk-input" placeholder="Example: 500" value="950">
-                </div>
+                <input type="number" id="riskValue" class="super-input risk-input" placeholder="950" value="950">
             </div>
 
             <div class="space-y-2">
