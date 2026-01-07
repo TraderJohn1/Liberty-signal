@@ -69,10 +69,8 @@
             <div class="flex flex-col gap-2">
                 <label class="font-bold text-blue-200 text-sm">Select API Provider:</label>
                 <select id="apiProvider" class="bg-slate-800 text-white border border-slate-600 rounded px-3 py-2 focus:outline-none focus:border-blue-500 font-bold">
-                    <option value="twelvedata">Twelve Data (Fastest - Free 800 calls/day)</option>
-                    <option value="fmp">FMP - Financial Modeling Prep (Batch Support)</option>
-                    <option value="alphavantage">Alpha Vantage (Popular - Free)</option>
-                    <option value="finnhub">Finnhub (Original - Slower)</option>
+                    <option value="finnhub">Finnhub</option>
+                    <option value="twelvedata">Twelve Data</option>
                 </select>
                 <div id="apiKeySection" class="mt-2">
                     <div class="flex gap-2">
@@ -80,7 +78,7 @@
                         <button onclick="saveKey()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-bold transition-colors whitespace-nowrap">SAVE</button>
                     </div>
                     <p class="text-[10px] text-gray-400 mt-2" id="apiInfo">
-                        Get free key: <a href="https://twelvedata.com" target="_blank" class="text-blue-400 underline">twelvedata.com</a>
+                        Get free key: <a href="https://finnhub.io" target="_blank" class="text-blue-400 underline">finnhub.io</a>
                     </p>
                 </div>
             </div>
@@ -119,25 +117,15 @@
     <script>
         // API Configuration
         const API_CONFIGS = {
-            twelvedata: {
-                name: 'Twelve Data',
-                infoUrl: 'https://twelvedata.com',
-                storageKey: 'twelvedata_key'
-            },
-            fmp: {
-                name: 'Financial Modeling Prep',
-                infoUrl: 'https://site.financialmodelingprep.com',
-                storageKey: 'fmp_key'
-            },
-            alphavantage: {
-                name: 'Alpha Vantage',
-                infoUrl: 'https://www.alphavantage.co',
-                storageKey: 'alphavantage_key'
-            },
             finnhub: {
                 name: 'Finnhub',
                 infoUrl: 'https://finnhub.io',
                 storageKey: 'finnhub_key'
+            },
+            twelvedata: {
+                name: 'Twelve Data',
+                infoUrl: 'https://twelvedata.com',
+                storageKey: 'twelvedata_key'
             }
         };
 
@@ -207,43 +195,6 @@
             };
         }
 
-        async function fetchFMP(ticker, apiKey) {
-            // FMP supports batch quotes - much faster!
-            const url = `https://financialmodelingprep.com/api/v3/quote/${ticker}?apikey=${apiKey}`;
-            const res = await fetch(url);
-            
-            if (res.status === 429) throw new Error("Rate Limit");
-            const data = await res.json();
-            
-            if (!data || data.length === 0 || data.error) throw new Error("Invalid Ticker");
-            
-            const quote = data[0];
-            return {
-                c: quote.price,
-                h: quote.dayHigh,
-                l: quote.dayLow
-            };
-        }
-
-        async function fetchAlphaVantage(ticker, apiKey) {
-            const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${ticker}&apikey=${apiKey}`;
-            const res = await fetch(url);
-            
-            if (res.status === 429) throw new Error("Rate Limit");
-            const data = await res.json();
-            
-            if (data['Error Message'] || data['Note']) throw new Error(data['Note'] ? "Rate Limit" : "Invalid Ticker");
-            
-            const quote = data['Global Quote'];
-            if (!quote) throw new Error("Invalid Ticker");
-            
-            return {
-                c: parseFloat(quote['05. price']),
-                h: parseFloat(quote['03. high']),
-                l: parseFloat(quote['04. low'])
-            };
-        }
-
         async function fetchFinnhub(ticker, apiKey) {
             const quoteUrl = `https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${apiKey}`;
             const res = await fetch(quoteUrl);
@@ -264,10 +215,6 @@
             switch(provider) {
                 case 'twelvedata':
                     return await fetchTwelveData(ticker, apiKey);
-                case 'fmp':
-                    return await fetchFMP(ticker, apiKey);
-                case 'alphavantage':
-                    return await fetchAlphaVantage(ticker, apiKey);
                 case 'finnhub':
                     return await fetchFinnhub(ticker, apiKey);
                 default:
