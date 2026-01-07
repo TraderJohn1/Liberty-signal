@@ -38,7 +38,7 @@
             font-size: 0.875rem;
             padding: 0.5rem;
             background-color: #1e293b !important;
-            color: #10b981 !important;
+            color: #ffffff !important;
             font-weight: 700 !important;
             border: 1px solid #374151 !important;
         }
@@ -72,6 +72,15 @@
             border: 2px solid #10b981 !important;
             box-shadow: 0 0 20px rgba(16, 185, 129, 0.4) !important;
         }
+        .trigger-met-short {
+            animation: pulse 2s ease-in-out infinite;
+            border: 2px solid #ef4444 !important;
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.4) !important;
+        }
+        .not-triggered {
+            opacity: 0.4;
+            filter: grayscale(50%);
+        }
         .api-selector {
             background: rgba(59, 130, 246, 0.1);
             border: 1px solid rgba(59, 130, 246, 0.3);
@@ -83,7 +92,7 @@
     <div class="glass-card rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden ring-1 ring-white/10 mb-8">
         <div class="bg-slate-900/50 p-6 border-b border-white/10 text-center">
             <h1 class="text-2xl font-black tracking-tight text-white uppercase">Position Size Calculator</h1>
-            <p class="text-blue-400 text-xs font-bold tracking-widest uppercase mt-1">Multi-Ticker • Real-Time Data • Trigger Alerts</p>
+            <p class="text-blue-400 text-xs font-bold tracking-widest uppercase mt-1">Multi-Ticker • Real-Time Data • Smart Triggers</p>
         </div>
 
         <div class="p-4 bg-blue-900/10 border-b border-blue-500/20">
@@ -116,7 +125,7 @@
 
             <div class="space-y-2">
                 <label class="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Enter Tickers & Trigger Prices (Up to 5)</label>
-                <p class="text-[10px] text-gray-500 ml-1">Trigger: Enter price for LONG (buy if above) or SHORT (buy if below)</p>
+                <p class="text-[10px] text-gray-500 ml-1">LONG: Stock UP on day + above trigger | SHORT: Stock DOWN on day + below trigger</p>
                 <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
                     <div class="flex flex-col gap-2">
                         <input type="text" class="super-input ticker-input" placeholder="Ticker">
@@ -228,7 +237,8 @@
             return {
                 c: parseFloat(quote.close),
                 h: parseFloat(quote.high),
-                l: parseFloat(quote.low)
+                l: parseFloat(quote.low),
+                pc: parseFloat(quote.previous_close)
             };
         }
 
@@ -244,7 +254,8 @@
             return {
                 c: data.c,
                 h: data.h || data.c,
-                l: data.l || data.c
+                l: data.l || data.c,
+                pc: data.pc
             };
         }
 
@@ -335,7 +346,7 @@
         }
 
         function createResultCard(ticker, data, riskAmount, triggerPrice, container) {
-            const { c: current, h: high, l: low } = data;
+            const { c: current, h: high, l: low, pc: prevClose } = data;
 
             const longStopPrice = low - 0.01;
             const shortStopPrice = high + 0.01;
@@ -356,27 +367,45 @@
                 sharesShort = "N/A";
             }
 
-            // Determine if trigger is met
+            // Determine if stock is UP or DOWN on the day
+            const isUpDay = current > prevClose;
+            const isDownDay = current < prevClose;
+            const changePercent = ((current - prevClose) / prevClose * 100).toFixed(2);
+            const changeColor = isUpDay ? 'text-green-400' : 'text-red-400';
+            const changeSymbol = isUpDay ? '▲' : '▼';
+
+            // Smart trigger logic based on day direction
             let longTriggerMet = false;
             let shortTriggerMet = false;
             let triggerDisplay = '';
+            let notTriggered = false;
 
             if (triggerPrice !== null && !isNaN(triggerPrice)) {
-                if (current > triggerPrice) {
+                if (isUpDay && current > triggerPrice) {
+                    // Stock is UP and above trigger = LONG TRIGGERED
                     longTriggerMet = true;
-                    triggerDisplay = `<div class="text-center mt-2 text-green-400 text-xs font-bold">✓ LONG TRIGGER MET (>${triggerPrice.toFixed(2)})</div>`;
-                } else if (current < triggerPrice) {
+                    triggerDisplay = `<div class="text-center mt-2 text-green-400 text-xs font-bold">✓ LONG TRIGGER MET (Above $${triggerPrice.toFixed(2)})</div>`;
+                } else if (isDownDay && current < triggerPrice) {
+                    // Stock is DOWN and below trigger = SHORT TRIGGERED
                     shortTriggerMet = true;
-                    triggerDisplay = `<div class="text-center mt-2 text-red-400 text-xs font-bold">✓ SHORT TRIGGER MET (<${triggerPrice.toFixed(2)})</div>`;
+                    triggerDisplay = `<div class="text-center mt-2 text-red-400 text-xs font-bold">✓ SHORT TRIGGER MET (Below $${triggerPrice.toFixed(2)})</div>`;
                 } else {
-                    triggerDisplay = `<div class="text-center mt-2 text-yellow-400 text-xs font-bold">⚠ AT TRIGGER PRICE (${triggerPrice.toFixed(2)})</div>`;
+                    // Trigger set but not met
+                    notTriggered = true;
+                    if (isUpDay) {
+                        triggerDisplay = `<div class="text-center mt-2 text-gray-500 text-xs font-bold">⚠ LONG Trigger Not Met (Need >${triggerPrice.toFixed(2)}, at ${current.toFixed(2)})</div>`;
+                    } else if (isDownDay) {
+                        triggerDisplay = `<div class="text-center mt-2 text-gray-500 text-xs font-bold">⚠ SHORT Trigger Not Met (Need <${triggerPrice.toFixed(2)}, at ${current.toFixed(2)})</div>`;
+                    } else {
+                        triggerDisplay = `<div class="text-center mt-2 text-yellow-400 text-xs font-bold">⚠ Flat on Day (Trigger: ${triggerPrice.toFixed(2)})</div>`;
+                    }
                 }
             }
 
-            const longClasses = longTriggerMet ? 'trigger-met' : '';
-            const shortClasses = shortTriggerMet ? 'trigger-met' : '';
-            const longBadge = longTriggerMet ? '<div class="absolute top-2 right-2 bg-green-500 text-white text-[8px] font-black px-2 py-1 rounded-full">✓ TRIGGER</div>' : '';
-            const shortBadge = shortTriggerMet ? '<div class="absolute top-2 right-2 bg-red-500 text-white text-[8px] font-black px-2 py-1 rounded-full">✓ TRIGGER</div>' : '';
+            const longClasses = longTriggerMet ? 'trigger-met' : (notTriggered ? 'not-triggered' : '');
+            const shortClasses = shortTriggerMet ? 'trigger-met-short' : (notTriggered ? 'not-triggered' : '');
+            const longBadge = longTriggerMet ? '<div class="absolute top-2 right-2 bg-green-500 text-white text-[8px] font-black px-2 py-1 rounded-full z-20">✓ GO</div>' : '';
+            const shortBadge = shortTriggerMet ? '<div class="absolute top-2 right-2 bg-red-500 text-white text-[8px] font-black px-2 py-1 rounded-full z-20">✓ GO</div>' : '';
 
             const cardHTML = `
                 <div class="glass-card rounded-xl p-5 animate-fade-in ring-1 ring-white/10">
@@ -387,7 +416,10 @@
                         </div>
                         <div class="text-right">
                             <div class="text-2xl font-bold text-blue-400">$${current.toFixed(2)}</div>
-                            <div class="text-[10px] text-gray-500 font-mono mt-1">
+                            <div class="text-[10px] ${changeColor} font-mono mt-1 font-bold">
+                                ${changeSymbol} ${Math.abs(changePercent)}%
+                            </div>
+                            <div class="text-[10px] text-gray-500 font-mono">
                                 H: <span class="text-gray-300">${high.toFixed(2)}</span> / L: <span class="text-gray-300">${low.toFixed(2)}</span>
                             </div>
                         </div>
