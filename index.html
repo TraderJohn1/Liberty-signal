@@ -34,6 +34,18 @@
             font-weight: 600;
             text-transform: none;
         }
+        .trigger-input {
+            font-size: 0.875rem;
+            padding: 0.5rem;
+            background-color: #1e293b !important;
+            color: #10b981 !important;
+            font-weight: 700 !important;
+            border: 1px solid #374151 !important;
+        }
+        .trigger-input::placeholder {
+            color: #6b7280 !important;
+            font-weight: 500 !important;
+        }
         .risk-input {
             font-size: 1.5rem;
             padding-left: 2.5rem;
@@ -51,6 +63,15 @@
         .animate-fade-in {
             animation: fadeIn 0.4s ease-out forwards;
         }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .trigger-met {
+            animation: pulse 2s ease-in-out infinite;
+            border: 2px solid #10b981 !important;
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.4) !important;
+        }
         .api-selector {
             background: rgba(59, 130, 246, 0.1);
             border: 1px solid rgba(59, 130, 246, 0.3);
@@ -62,7 +83,7 @@
     <div class="glass-card rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden ring-1 ring-white/10 mb-8">
         <div class="bg-slate-900/50 p-6 border-b border-white/10 text-center">
             <h1 class="text-2xl font-black tracking-tight text-white uppercase">Position Size Calculator</h1>
-            <p class="text-blue-400 text-xs font-bold tracking-widest uppercase mt-1">Multi-Ticker • Real-Time Data • Optimized</p>
+            <p class="text-blue-400 text-xs font-bold tracking-widest uppercase mt-1">Multi-Ticker • Real-Time Data • Trigger Alerts</p>
         </div>
 
         <div class="p-4 bg-blue-900/10 border-b border-blue-500/20">
@@ -94,13 +115,29 @@
             </div>
 
             <div class="space-y-2">
-                <label class="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Enter Tickers (Up to 5)</label>
+                <label class="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Enter Tickers & Trigger Prices (Up to 5)</label>
+                <p class="text-[10px] text-gray-500 ml-1">Trigger: Enter price for LONG (buy if above) or SHORT (buy if below)</p>
                 <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
-                    <input type="text" class="super-input ticker-input" placeholder="Ticker">
-                    <input type="text" class="super-input ticker-input" placeholder="Ticker">
-                    <input type="text" class="super-input ticker-input" placeholder="Ticker">
-                    <input type="text" class="super-input ticker-input" placeholder="Ticker">
-                    <input type="text" class="super-input ticker-input" placeholder="Ticker">
+                    <div class="flex flex-col gap-2">
+                        <input type="text" class="super-input ticker-input" placeholder="Ticker">
+                        <input type="number" step="0.01" class="trigger-input" placeholder="Trigger $">
+                    </div>
+                    <div class="flex flex-col gap-2">
+                        <input type="text" class="super-input ticker-input" placeholder="Ticker">
+                        <input type="number" step="0.01" class="trigger-input" placeholder="Trigger $">
+                    </div>
+                    <div class="flex flex-col gap-2">
+                        <input type="text" class="super-input ticker-input" placeholder="Ticker">
+                        <input type="number" step="0.01" class="trigger-input" placeholder="Trigger $">
+                    </div>
+                    <div class="flex flex-col gap-2">
+                        <input type="text" class="super-input ticker-input" placeholder="Ticker">
+                        <input type="number" step="0.01" class="trigger-input" placeholder="Trigger $">
+                    </div>
+                    <div class="flex flex-col gap-2">
+                        <input type="text" class="super-input ticker-input" placeholder="Ticker">
+                        <input type="number" step="0.01" class="trigger-input" placeholder="Trigger $">
+                    </div>
                 </div>
             </div>
 
@@ -225,7 +262,13 @@
         async function calculateAll() {
             const riskVal = parseFloat(document.getElementById('riskValue').value);
             const tickerInputs = Array.from(document.querySelectorAll('.ticker-input'));
-            const tickers = tickerInputs.map(i => i.value.trim().toUpperCase()).filter(v => v !== "");
+            const triggerInputs = Array.from(document.querySelectorAll('.trigger-input'));
+            
+            const tickerData = tickerInputs.map((input, index) => ({
+                ticker: input.value.trim().toUpperCase(),
+                trigger: parseFloat(triggerInputs[index].value) || null
+            })).filter(item => item.ticker !== "");
+            
             const provider = document.getElementById('apiProvider').value;
             
             const btn = document.getElementById('calcBtn');
@@ -240,7 +283,7 @@
                 errorMsg.classList.add('bg-red-900/20', 'text-red-400');
                 return;
             }
-            if (tickers.length === 0) {
+            if (tickerData.length === 0) {
                 errorMsg.innerText = "Enter at least one ticker.";
                 errorMsg.classList.remove('hidden', 'bg-green-900/20', 'text-green-400');
                 errorMsg.classList.add('bg-red-900/20', 'text-red-400');
@@ -256,10 +299,10 @@
 
             try {
                 // PARALLEL PROCESSING - Fetch all tickers simultaneously!
-                const fetchPromises = tickers.map(ticker => 
-                    fetchTickerData(ticker, provider, apiKey)
-                        .then(data => ({ ticker, data, success: true }))
-                        .catch(err => ({ ticker, error: err.message, success: false }))
+                const fetchPromises = tickerData.map(item => 
+                    fetchTickerData(item.ticker, provider, apiKey)
+                        .then(data => ({ ticker: item.ticker, trigger: item.trigger, data, success: true }))
+                        .catch(err => ({ ticker: item.ticker, trigger: item.trigger, error: err.message, success: false }))
                 );
 
                 const results = await Promise.all(fetchPromises);
@@ -269,7 +312,7 @@
                 // Display results
                 results.forEach(result => {
                     if (result.success) {
-                        createResultCard(result.ticker, result.data, riskVal, container);
+                        createResultCard(result.ticker, result.data, riskVal, result.trigger, container);
                     } else {
                         createErrorCard(result.ticker, result.error, container);
                     }
@@ -291,7 +334,7 @@
             }
         }
 
-        function createResultCard(ticker, data, riskAmount, container) {
+        function createResultCard(ticker, data, riskAmount, triggerPrice, container) {
             const { c: current, h: high, l: low } = data;
 
             const longStopPrice = low - 0.01;
@@ -313,6 +356,28 @@
                 sharesShort = "N/A";
             }
 
+            // Determine if trigger is met
+            let longTriggerMet = false;
+            let shortTriggerMet = false;
+            let triggerDisplay = '';
+
+            if (triggerPrice !== null && !isNaN(triggerPrice)) {
+                if (current > triggerPrice) {
+                    longTriggerMet = true;
+                    triggerDisplay = `<div class="text-center mt-2 text-green-400 text-xs font-bold">✓ LONG TRIGGER MET (>${triggerPrice.toFixed(2)})</div>`;
+                } else if (current < triggerPrice) {
+                    shortTriggerMet = true;
+                    triggerDisplay = `<div class="text-center mt-2 text-red-400 text-xs font-bold">✓ SHORT TRIGGER MET (<${triggerPrice.toFixed(2)})</div>`;
+                } else {
+                    triggerDisplay = `<div class="text-center mt-2 text-yellow-400 text-xs font-bold">⚠ AT TRIGGER PRICE (${triggerPrice.toFixed(2)})</div>`;
+                }
+            }
+
+            const longClasses = longTriggerMet ? 'trigger-met' : '';
+            const shortClasses = shortTriggerMet ? 'trigger-met' : '';
+            const longBadge = longTriggerMet ? '<div class="absolute top-2 right-2 bg-green-500 text-white text-[8px] font-black px-2 py-1 rounded-full">✓ TRIGGER</div>' : '';
+            const shortBadge = shortTriggerMet ? '<div class="absolute top-2 right-2 bg-red-500 text-white text-[8px] font-black px-2 py-1 rounded-full">✓ TRIGGER</div>' : '';
+
             const cardHTML = `
                 <div class="glass-card rounded-xl p-5 animate-fade-in ring-1 ring-white/10">
                     <div class="flex justify-between items-start border-b border-white/10 pb-3 mb-4">
@@ -327,8 +392,10 @@
                             </div>
                         </div>
                     </div>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="bg-emerald-900/20 border border-emerald-500/20 rounded-lg p-3 text-center group hover:bg-emerald-900/30 transition-colors">
+                    ${triggerDisplay}
+                    <div class="grid grid-cols-2 gap-4 mt-4">
+                        <div class="bg-emerald-900/20 border border-emerald-500/20 rounded-lg p-3 text-center group hover:bg-emerald-900/30 transition-colors relative ${longClasses}">
+                            ${longBadge}
                             <div class="text-emerald-500 text-[10px] font-black uppercase tracking-widest mb-1">LONG SETUP</div>
                             <div class="text-3xl font-black text-white font-mono">${typeof sharesLong === 'number' ? sharesLong.toLocaleString() : sharesLong}</div>
                             <div class="text-[10px] text-emerald-200/50 uppercase font-bold tracking-wider mb-2">Shares</div>
@@ -337,7 +404,8 @@
                                 <span class="text-emerald-400 font-mono font-bold text-sm">${longStopPrice.toFixed(2)}</span>
                             </div>
                         </div>
-                        <div class="bg-rose-900/20 border border-rose-500/20 rounded-lg p-3 text-center group hover:bg-rose-900/30 transition-colors">
+                        <div class="bg-rose-900/20 border border-rose-500/20 rounded-lg p-3 text-center group hover:bg-rose-900/30 transition-colors relative ${shortClasses}">
+                            ${shortBadge}
                             <div class="text-rose-500 text-[10px] font-black uppercase tracking-widest mb-1">SHORT SETUP</div>
                             <div class="text-3xl font-black text-white font-mono">${typeof sharesShort === 'number' ? sharesShort.toLocaleString() : sharesShort}</div>
                             <div class="text-[10px] text-rose-200/50 uppercase font-bold tracking-wider mb-2">Shares</div>
